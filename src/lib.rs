@@ -1,3 +1,63 @@
+/*!
+
+## Profiling struct generator
+
+Yet another generator for `gl_generator`, very similar to `DebugStructGenerator`, but with these changes/additions:
+
+- It does not log all calls. It only logs a call that caused an error.
+- The corresponding explanation is included with the error code.
+- Contains a profiler that tracks the number of GL calls and errors.
+
+### Using the profiler
+
+The generated `gl` module gains 3 additional methods:
+
+- `profiler_reset()` - resets the profiler;
+- `profiler_call_count() -> usize` - returns the number of calls since the last reset (or application start);
+- `profiler_err_count() -> usize` - returns the number of errors since the last reset (or application start);
+
+Example usage:
+
+```rust,no_run,ignore
+gl::profiler_reset();
+
+// the code
+
+println!("Number of GL calls: {}", gl::profiler_call_count());
+println!("Number of GL errors: {}", gl::profiler_err_count());
+```
+
+## Setting up the build script
+
+The build script is very similar to the one used by `gl` crate. Here is the example:
+
+```rust,no_run,ignore
+extern crate gl_generator;
+extern crate gl_generator_profiling_struct;
+
+use gl_generator::{Registry, Fallbacks, Api, Profile};
+use gl_generator_profiling_struct::ProfilingStructGenerator;
+use std::env;
+use std::fs::File;
+use std::path::Path;
+
+fn main() {
+    let out_dir = env::var("OUT_DIR").unwrap();
+    let mut file_gl = File::create(&Path::new(&out_dir).join("bindings.rs")).unwrap();
+
+    let registry = Registry::new(Api::Gl, (4, 5), Profile::Core, Fallbacks::All, [
+        "GL_NV_command_list",
+    ]);
+
+    registry.write_bindings(
+        ProfilingStructGenerator,
+        &mut file_gl
+    ).unwrap();
+}
+```
+
+*/
+
 extern crate gl_generator;
 
 use gl_generator::{Registry, generators};
