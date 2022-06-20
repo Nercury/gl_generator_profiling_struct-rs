@@ -72,14 +72,14 @@ impl gl_generator::Generator for ProfilingStructGenerator {
         where
             W: io::Write,
     {
-        try!(write_helper(dest));
-        try!(write_header(dest));
-        try!(write_type_aliases(registry, dest));
-        try!(write_enums(registry, dest));
-        try!(write_fnptr_struct_def(dest));
-        try!(write_panicking_fns(registry, dest));
-        try!(write_struct(registry, dest));
-        try!(write_impl(registry, dest));
+        write_helper(dest)?;
+        write_header(dest)?;
+        write_type_aliases(registry, dest)?;
+        write_enums(registry, dest)?;
+        write_fnptr_struct_def(dest)?;
+        write_panicking_fns(registry, dest)?;
+        write_struct(registry, dest)?;
+        write_impl(registry, dest)?;
         Ok(())
     }
 }
@@ -197,15 +197,15 @@ fn write_type_aliases<W>(registry: &Registry, dest: &mut W) -> io::Result<()>
     where
         W: io::Write,
 {
-    try!(writeln!(
+    writeln!(
         dest,
         r#"
         pub mod types {{
             #![allow(non_camel_case_types, non_snake_case, dead_code, missing_copy_implementations)]
     "#
-    ));
+    )?;
 
-    try!(generators::gen_types(registry.api, dest));
+    generators::gen_types(registry.api, dest)?;
 
     writeln!(dest, "}}")
 }
@@ -216,7 +216,7 @@ fn write_enums<W>(registry: &Registry, dest: &mut W) -> io::Result<()>
         W: io::Write,
 {
     for enm in &registry.enums {
-        try!(generators::gen_enum_item(enm, "types::", dest));
+        generators::gen_enum_item(enm, "types::", dest)?;
     }
 
     Ok(())
@@ -287,22 +287,22 @@ fn write_struct<W>(registry: &Registry, dest: &mut W) -> io::Result<()>
     where
         W: io::Write,
 {
-    try!(writeln!(
+    writeln!(
         dest,
         "
         #[allow(non_camel_case_types, non_snake_case, dead_code)]
         #[derive(Clone)]
         pub struct {api} {{",
         api = generators::gen_struct_name(registry.api)
-    ));
+    )?;
 
     for cmd in &registry.cmds {
         if let Some(v) = registry.aliases.get(&cmd.proto.ident) {
-            try!(writeln!(dest, "/// Fallbacks: {}", v.join(", ")));
+            writeln!(dest, "/// Fallbacks: {}", v.join(", "))?;
         }
-        try!(writeln!(dest, "pub {name}: FnPtr,", name = cmd.proto.ident));
+        writeln!(dest, "pub {name}: FnPtr,", name = cmd.proto.ident)?;
     }
-    try!(writeln!(dest, "_priv: ()"));
+    writeln!(dest, "_priv: ()")?;
 
     writeln!(dest, "}}")
 }
@@ -312,7 +312,7 @@ fn write_impl<W>(registry: &Registry, dest: &mut W) -> io::Result<()>
     where
         W: io::Write,
 {
-    try!(writeln!(dest,
+    writeln!(dest,
                   "impl {api} {{
             /// Load each OpenGL symbol using a custom load function. This allows for the
             /// use of functions like `glfwGetProcAddress` or `SDL_GL_GetProcAddress`.
@@ -323,7 +323,7 @@ fn write_impl<W>(registry: &Registry, dest: &mut W) -> io::Result<()>
             #[allow(dead_code, unused_variables)]
             pub fn load_with<F>(mut loadfn: F) -> {api} where F: FnMut(&'static str) -> *const __gl_imports::raw::c_void {{
                 #[inline(never)]
-                fn do_metaloadfn(loadfn: &mut FnMut(&'static str) -> *const __gl_imports::raw::c_void,
+                fn do_metaloadfn(loadfn: &mut dyn FnMut(&'static str) -> *const __gl_imports::raw::c_void,
                                  symbol: &'static str,
                                  symbols: &[&'static str])
                                  -> *const __gl_imports::raw::c_void {{
@@ -340,10 +340,10 @@ fn write_impl<W>(registry: &Registry, dest: &mut W) -> io::Result<()>
                     do_metaloadfn(&mut loadfn, symbol, symbols)
                 }};
                 {api} {{",
-                  api = generators::gen_struct_name(registry.api)));
+                  api = generators::gen_struct_name(registry.api))?;
 
     for cmd in &registry.cmds {
-        try!(writeln!(
+        writeln!(
             dest,
             "{name}: FnPtr::new(metaloadfn(\"{symbol}\", &[{fallbacks}])),",
             name = cmd.proto.ident,
@@ -355,15 +355,15 @@ fn write_impl<W>(registry: &Registry, dest: &mut W) -> io::Result<()>
                     .join(", "),
                 None => format!(""),
             },
-        ))
+        )?
     }
-    try!(writeln!(dest, "_priv: ()"));
+    writeln!(dest, "_priv: ()")?;
 
-    try!(writeln!(
+    writeln!(
         dest,
         "}}
         }}"
-    ));
+    )?;
 
     for cmd in &registry.cmds {
         let idents = generators::gen_parameters(cmd, true, false);
@@ -387,7 +387,7 @@ fn write_impl<W>(registry: &Registry, dest: &mut W) -> io::Result<()>
                 .concat()
         );
 
-        try!(writeln!(dest,
+        writeln!(dest,
                       "#[allow(non_snake_case, unused_variables, dead_code)]
             #[inline] pub unsafe fn {name}(&self, {params}) -> {return_suffix} {{ \
                 let r = __gl_imports::mem::transmute::<_, extern \"system\" fn({typed_params}) -> {return_suffix}>\
@@ -410,7 +410,7 @@ fn write_impl<W>(registry: &Registry, dest: &mut W) -> io::Result<()>
                     (self.GetError.f)() {{ 0 => inc_call(), r => {{ inc_err(); {println} println!("[OpenGL] ^ GL error triggered: {{}}, {{}}", r, gl_error_to_str(r))}} }}"#, println = println)
                       } else {
                           format!("")
-                      }))
+                      })?
     }
 
     writeln!(
